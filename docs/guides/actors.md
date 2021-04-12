@@ -332,44 +332,44 @@ parentService.send('LOCAL.WAKE');
 // => 'connected'
 ```
 
-## Syncing and Reading State <Badge text="4.6.1+"/>
+## Syncing and Reading State
 
-One of the main tenets of the Actor model is that actor state is _private_ and _local_ - it is never shared unless the actor chooses to share it, via message passing. Sticking with this model, an actor can _notify_ its parent whenever its state changes by sending it a special "update" event with its latest state. In other words, parent actors can subscribe to their child actors' states.
+One of the main tenets of the Actor model is that actor state is _private_ and _local_ - it is never shared unless the actor chooses to share it, via message passing. Sticking with this model, an actor can _notify_ its parent whenever its state changes by sending it a special `xstate.update` event with its latest state. In other words, parent actors can subscribe to their child actors' states.
 
-To do this, set `{ sync: true }` as an option to `spawn(...)`:
+### Reading State <Badge text="4.6.1+"/>
+
+After spawning a child actor, the parent can access the spawned child actor's state through `ref.state`:
 
 ```js {4}
 // ...
 {
   actions: assign({
-    // Actor will send update event to parent whenever its state changes
-    someRef: () => spawn(todoMachine, { sync: true })
+    // Store the child actor ref under `state.context.someRef`
+    someRef: () => spawn(todoMachine)
   });
 }
+
 // ...
-```
 
-This will automatically subscribe the machine to the spawned child machine's state, which is kept updated in `ref.state`:
-
-```js
 someService.onTransition((state) => {
   const { someRef } = state.context;
 
+  // Access the child actor's state
   console.log(someRef.state);
   // => State {
-  //   value: ...,
-  //   context: ...
+  //  value: ...,
+  //  context: ...
   // }
 });
 ```
 
 ::: warning
-By default, `sync` is set to `false`. Never read an actor's `.state` when `sync` is disabled; otherwise, you will end up referencing stale state.
+By default, an actor will not notify its parent of state changes. The referenced state will be stale unless the `sendUpdate` action or `sync` option are used.
 :::
 
-## Sending Updates <Badge text="4.7+" />
+### Sending State Updates <Badge text="4.7+">
 
-For actors that are not synchronized with the parent, the actor can send an explicit event to its parent machine via `sendUpdate()`:
+A child actor can notify its parent of state updates using the `sendUpdate` action:
 
 ```js
 import { Machine, sendUpdate } from 'xstate';
@@ -388,8 +388,27 @@ const childMachine = Machine({
 });
 ```
 
+This action sends an `xstate.update` event with the child's latest state to the parent, so accessing the child's state with `ref.state` in the parent points to this latest state.
+
+### Syncing State Automatically <Badge text="4.6.1+"/>
+
+A parent can automatically subscribe to a spawn child actor's state by setting `{ sync: true }` as an option to `spawn(...)`:
+
+```js {4}
+// ...
+{
+  actions: assign({
+    // Actor will send update event to parent whenever its state changes
+    someRef: () => spawn(todoMachine, { sync: true })
+  });
+}
+// ...
+```
+
+The `sync` option causes an `xstate.update` event to be sent to the parent whenever the child actor's state updates, so accessing the child's state with `ref.state` in the parent always points to the child's latest state.
+
 ::: tip
-Prefer sending events to the parent explicitly (`sendUpdate()`) rather than subscribing to every state change. Syncing with spawned machines can result in "chatty" event logs, since every update from the child results in a new `"xstate.update"` event sent from the child to the parent.
+Prefer sending events to the parent explicitly with the `sendUpdate` action rather than subscribing to every state change. Syncing with spawned machines can result in "chatty" event logs, since every update from the child results in a new `"xstate.update"` event sent from the child to the parent.
 :::
 
 ## Quick Reference
